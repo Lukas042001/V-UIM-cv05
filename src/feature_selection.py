@@ -124,6 +124,33 @@ class FilterSelector(FeatureSelector):
         # assert  Ověřte, že X je 2D pole (X.ndim == 2)
         # assert  Ověřte, že len(y) == X.shape[0]
         # assert  Ověřte, že y je binarni (mnozina hodnot je podmnozinou {0, 1})
+
+        assert x.ndim == 2
+        assert len(y) == x.shape[0]
+        assert set(np.unique(y)).issubset({0, 1})
+
+        y = np.asarray(y)
+        selected = []
+
+        for j in range(x.shape[1]):
+            a = x[y == 0, j]
+            b = x[y == 1, j]
+
+            normal_a = stats.shapiro(a).pvalue > self.alpha
+            normal_b = stats.shapiro(b).pvalue > self.alpha
+
+            if normal_a and normal_b:
+                p = stats.ttest_ind(a, b).pvalue
+            else:
+                p = stats.mannwhitneyu(a, b).pvalue
+
+            d = self._cohens_d(a, b)
+
+            if p < self.alpha and abs(d) >= self.min_effect_size:
+                selected.append(j)
+
+        return np.asarray(selected, dtype=int)
+
         raise NotImplementedError(
             "Úkol: implementujte filtrovaci vyber priznaku dvojkriteriem "
             "vyznamnost (p < alpha) A velikost ucinku (|d| >= min_effect_size); "
@@ -298,6 +325,21 @@ class SilhouetteWrapperSelector(WrapperSelector):
         """
         # assert  Ověřte, že X_subset je 2D pole (X_subset.ndim == 2)
         # assert  Ověřte, že X_subset.shape[0] > self.n_clusters
+
+        assert x_subset.ndim == 2
+        assert x_subset.shape[0] > self.n_clusters
+        assert self.n_clusters >= 2
+
+        model = KMeans(
+            n_clusters=self.n_clusters,
+            random_state=self.random_state,
+            n_init=10,
+        )
+
+        labels = model.fit_predict(x_subset)
+
+        return float(silhouette_score(x_subset, labels))
+
         raise NotImplementedError(
             "Úkol: implementujte siluetove skore — nafitujte KMeans na "
             "X_subset a vratte silhouette_score(X_subset, labels); "
@@ -369,6 +411,27 @@ class KNNWrapperSelector(WrapperSelector):
         # assert  Ověřte, že X_subset je 2D pole (X_subset.ndim == 2)
         # assert  Ověřte, že len(y) == X_subset.shape[0]
         # assert  Ověřte, že y obsahuje aspon 2 tridy
+
+        assert x_subset.ndim == 2
+        assert len(y) == x_subset.shape[0]
+        assert len(np.unique(y)) >= 2
+
+        x_train, x_test, y_train, y_test = train_test_split(
+            x_subset,
+            y,
+            test_size=self.test_size,
+            random_state=self.random_state,
+            stratify=y,
+        )
+
+        model = KNeighborsClassifier(
+            n_neighbors=self.n_neighbors
+        )
+
+        model.fit(x_train, y_train)
+
+        return float(model.score(x_test, y_test))
+
         raise NotImplementedError(
             "Úkol: implementujte skore jako testovaci presnost kNN — "
             "train_test_split, fit KNeighborsClassifier, vratte clf.score; "
